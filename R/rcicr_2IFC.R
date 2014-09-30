@@ -14,8 +14,9 @@
 #' @param label Label to prepend to each file for your convenience
 #' @param use_same_parameters Boolean specifying whether for each base image, the same set of parameters is used, or unique set is created for each base image
 #' @param seed Integer seeding the random number generator (for reproducibility)
+#' @param maximize_baseimage_contrast Boolean specifying wheter the pixel values of the base image should be rescaled to maximize its contrast. 
 #' @return Nothing, everything is saved to files. 
-generateStimuli2IFC <- function(base_face_files, n_trials=770, img_size=512, stimulus_path='./stimuli', label='rcic', use_same_parameters=TRUE, seed=1) {
+generateStimuli2IFC <- function(base_face_files, n_trials=770, img_size=512, stimulus_path='./stimuli', label='rcic', use_same_parameters=TRUE, seed=1, maximize_baseimage_contrast=TRUE) {
   
   # Initalize #
   s <- generateNoisePattern(img_size)
@@ -29,11 +30,20 @@ generateStimuli2IFC <- function(base_face_files, n_trials=770, img_size=512, sti
     # Read base face
     img <- jpeg::readJPEG(base_face_files[[base_face]])    
     
-    # TODO: Change base face to grey scale if necessary
-    
+    # Change base face to grey scale if necessary
+    if (length(dim(img)) == 3) {
+      img <- apply(img, c(1, 2), mean)
+    }
     
     # Adjust size of base face
     #base_faces[[base_face]] <- biOps::imgMedianShrink(img, x_scale=img_size/ncol(img), y_scale=img_size/nrow(img))
+    
+    # If necessary, rescale to maximize contrast
+    if (maximize_baseimage_contrast) {
+      img <- (img - min(img)) / (max(img) - min(img))
+    }
+    
+    # Save base image to list
     base_faces[[base_face]] <- img
   }
   
@@ -210,6 +220,64 @@ generateCI2IFC <- function(stimuli, responses, baseimage, rdata, saveasjpeg=TRUE
   
   # Return list
   return(list(ci=ci, scaled=scaled, base=base, combined=combined))
+}
+
+
+
+#' Generates multiple 2IFC classification images by participant or condition 
+#' 
+#' Generate classification image for 2 images forced choice reverse correlation task. 
+#' 
+#' This funcions saves the classification images by participant or condition as jpeg to a folder and returns the CIs.
+#' 
+#' @export
+#' @param data Data frame 
+#' @param by String specifying column name that specifies the smallest unit (participant, condition) to subset the data on and calculate CIs for
+#' @param stimuli String specifying column name in data frame that contains the stimulus numbers of the presented stimuli
+#' @param responses String specifying column name in data frame that contains the responses coded 1 for original stimulus selected and -1 for inverted stimulus selected.
+#' @param baseimage String specifying which base image was used. Not the file name, but the key used in the list of base images at time of generating the stimuli.
+#' @param rdata String pointing to .RData file that was created when stimuli were generated. This file contains the contrast parameters of all generated stimuli.
+#' @param saveasjpeg Boolean stating whether to additionally save the CI as jpeg image
+#' @param filename Optional string to specify a file name for the jpeg image
+#' @param antiCI Optional boolean specifying whether antiCI instead of CI should be computed
+#' @param scaling Optional string specifying scaling method: \code{none}, \code{constant},  \code{matched} or \code{autoscale} (default)
+#' @param constant Optional number specifying the value used as constant scaling factor for the noise (only works for \code{scaling='constant'})
+#' @return List of classification image data structures (which are themselves lists of pixel matrix of classification noise only, scaled classification noise only, base image only and combined) 
+batchGenerateCI2IFC <- function(data, by, stimuli, responses, baseimage, rdata, saveasjpeg=TRUE, filename='', antiCI=FALSE, scaling='autoscale', constant=0.1) {
+ 
+  if (scaling == 'autoscale') {
+    doAutoscale <- TRUE
+    scaling <- 'none'
+  } else {
+    doAutoscale <- FALSE
+  }
+  
+  pb <- tcltk::tkProgressBar(title="Computing classification images",  min=0, max=length(unique(data[,by])), initial=0)
+  cis <- list()
+  counter <- 0
+  
+  for (unit in unique(data[,by])) {
+    
+    # Update progress bar
+    counter <- counter + 1
+    tcltk::setTkProgressBar(pb, counter, label=unit)
+    
+    # Get subset of data 
+    unitdata <- data[data[,by] == unit, ]
+    
+    # Compute CI with appropriate settings for this subset (Optimize later so rdata file is loaded only once)
+    cis[[unit]] <- generateCI2IFC(unitdata[,stimuli], unitdata[,responses], baseimage, rdata, saveasjpeg, filename, antiCI, scaling, constant)
+  
+  }
+  
+  if (doAutoscale) {
+    tcltk::setTkProgressBar(pb, counter, label="Autoscaling...")
+    cis <- autoscale(cis)
+  }
+  
+  close(pb)
+  return(cis)
+
 }
 
 # Suppress checking notes for variables loaded at runtime from .RData files
