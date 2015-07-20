@@ -7,6 +7,10 @@
 #' .Rdata file contains the parameters that were used to generate each stimulus.
 #' 
 #' @export
+#' @import matlab
+#' @import dplyr
+#' @import jpeg
+#' @importFrom stats runif
 #' @param base_face_files List containing base face file names (jpegs) used as base images for stimuli
 #' @param n_trials Number specifying how many trials the task will have (function will generate two images for each trial per base image: original and inverted/negative noise)
 #' @param img_size Number specifying the number of pixels that the stimulus image will span horizontally and vertically (will be square, so only one integer needed)
@@ -20,7 +24,7 @@ generateStimuli2IFC <- function(base_face_files, n_trials=770, img_size=512, sti
   
   # Initalize #
   s <- generateNoisePattern(img_size)
-  dir.create(stimulus_path, recursive=T)
+  dir.create(stimulus_path, recursive=T, showWarnings = F)
   set.seed(seed)
   
   stimuli_params <- list()
@@ -74,12 +78,12 @@ generateStimuli2IFC <- function(base_face_files, n_trials=770, img_size=512, sti
   }
   
   # Generate stimuli #
+  pb <- dplyr::progress_estimated(n_trials)
   
-  pb <- tcltk::tkProgressBar(title="Generating stimuli for all base faces", label=paste0("trials:", n_trials, " base faces:", length(base_faces)), min=0, max=n_trials, initial=0)
   stimuli <- matlab::zeros(img_size, img_size, n_trials)
   
   for (trial in 1:n_trials) {
-    tcltk::setTkProgressBar(pb, trial)
+    pb$tick()$print()
     
     if (use_same_parameters) {
       # compute noise pattern, can be used for all base faces
@@ -113,7 +117,7 @@ generateStimuli2IFC <- function(base_face_files, n_trials=770, img_size=512, sti
     }
   }
   
-  close(pb)  
+  pb$stop()
   
   # Save all to image file (IMPORTANT, this file is necessary to analyze your data later and create classification images)
   generator_version <- '0.3.0'
@@ -124,7 +128,7 @@ generateStimuli2IFC <- function(base_face_files, n_trials=770, img_size=512, sti
 
 #' Generates 2IFC classification image 
 #' 
-#' Generate classification image for 2 images forced choice reverse correlation task. 
+#' Generate classification image for 2 images forced choice reverse correlation task.  This function exists for backwards compatibility. You can also just use \code{generateCI()}, which this function wraps.
 #' 
 #' This funcions saves the classification image as jpeg to a folder and returns the CI. Your choice of scaling
 #' matters. The default is \code{'matched'}, and will match the range of the intensity of the pixels to
@@ -150,93 +154,16 @@ generateStimuli2IFC <- function(base_face_files, n_trials=770, img_size=512, sti
 #' @param rdata String pointing to .RData file that was created when stimuli were generated. This file contains the contrast parameters of all generated stimuli.
 #' @param saveasjpeg Boolean stating whether to additionally save the CI as jpeg image
 #' @param filename Optional string to specify a file name for the jpeg image
+#' @param targetpath Optional string specifying path to save jpegs to (default: ./cis)
 #' @param antiCI Optional boolean specifying whether antiCI instead of CI should be computed
 #' @param scaling Optional string specifying scaling method: \code{none}, \code{constant}, or \code{matched} (default)
 #' @param constant Optional number specifying the value used as constant scaling factor for the noise (only works for \code{scaling='constant'})
 #' @return List of pixel matrix of classification noise only, scaled classification noise only, base image only and combined 
-generateCI2IFC <- function(stimuli, responses, baseimage, rdata, saveasjpeg=TRUE, filename='', antiCI=FALSE, scaling='constant', constant=0.1) {
+generateCI2IFC <- function(stimuli, responses, baseimage, rdata, saveasjpeg=TRUE, filename='', targetpath=targetpath, antiCI=FALSE, scaling='constant', constant=0.1) {
   
-  # Load parameter file (created when generating stimuli)
-  load(rdata)
-  
-  # Check whether critical variables have been loaded
-  if (!exists('s', envir=environment(), inherits=FALSE)) {
-    stop('File specified in rdata argument did not contain s variable.')
-  }
-  
-  if (!exists('base_faces', envir=environment(), inherits=FALSE)) {
-    stop('File specified in rdata argument did not contain base_faces variable.')
-  }
-  
-  if (!exists('stimuli_params', envir=environment(), inherits=FALSE)) {
-    stop('File specified in rdata argument did not contain stimuli_params variable.')
-  }
+  # For backwards compatibility  
+  return(generateCI(stimuli, responses, baseimage, rdata, saveasjpeg, filename, targetpath, antiCI, scaling, constant))
 
-  # Get base image
-  base <- base_faces[[baseimage]]
-  if (is.null(base)) {
-    stop(paste0('File specified in rdata argument did not contain any reference to base image label: ', baseimage, ' (NOTE: file contains references to the following base image label(s): ', paste(names(base_faces), collapse=', '), ')'))
-  }
-  
-  
-  # Average responses for each presented stimulus (in case stimuli have been presented multiple times,
-  # or group-wise classification images are being calculated, in order to reduce memory and processing
-  # load)
-  aggregated <- aggregate(responses, by=list(stimuli=stimuli), FUN=mean)
-  responses <- aggregated$x
-  stimuli <- aggregated$stimuli
-  
-  # Retrieve parameters of actually presented stimuli (this will work with non-consecutive stims as well)
-  params <- stimuli_params[[baseimage]][stimuli,]
-
-  # Check whether parameters were found in this .rdata file
-  if (length(params) == 0) {
-    stop(paste0('No parameters found for base image: ', base))
-  }
-  
-  # Compute classification image
-  if (antiCI) {
-    params = -params
-  } 
-  ci <- generateCI(params, responses, s)
-  
-  # Scale 
-  if (scaling == 'none') {
-    scaled <- ci
-  } else if (scaling == 'constant') {
-    scaled <- (ci + constant) / (2*constant)
-    if (max(scaled) > 1.0 | min(scaled) < 0) {
-      warning('Chosen constant value for constant scaling made noise of classification image exceed possible intensity range of pixels (<0 or >1). Choose a lower value, or clipping will occur.')
-    } 
-  } else if (scaling == 'matched') {
-    scaled <- min(base) + ((max(base) - min(base)) * (ci - min(ci)) / (max(ci) - min(ci)))
-  } else {
-    warning(paste0('Scaling method \'', scaling, '\' not found. Using none.'))
-    scaled <- ci
-  }
-  
-  # Combine with base image
-  combined <- (scaled + base) / 2
-  
-  # Save to file
-  if (saveasjpeg) {
-    
-    if (filename == '') {
-      filename <- paste0(baseimage, '.jpg')
-    }
-    
-    if (antiCI) {
-      filename <- paste0('antici_', filename)
-    } else {
-      filename <- paste0('ci_', filename)
-    }
-    
-    jpeg::writeJPEG(combined, filename)
-    
-  }
-  
-  # Return list
-  return(list(ci=ci, scaled=scaled, base=base, combined=combined))
 }
 
 
@@ -248,6 +175,7 @@ generateCI2IFC <- function(stimuli, responses, baseimage, rdata, saveasjpeg=TRUE
 #' This funcions saves the classification images by participant or condition as jpeg to a folder and returns the CIs.
 #' 
 #' @export
+#' @import dplyr
 #' @param data Data frame 
 #' @param by String specifying column name that specifies the smallest unit (participant, condition) to subset the data on and calculate CIs for
 #' @param stimuli String specifying column name in data frame that contains the stimulus numbers of the presented stimuli
@@ -255,11 +183,14 @@ generateCI2IFC <- function(stimuli, responses, baseimage, rdata, saveasjpeg=TRUE
 #' @param baseimage String specifying which base image was used. Not the file name, but the key used in the list of base images at time of generating the stimuli.
 #' @param rdata String pointing to .RData file that was created when stimuli were generated. This file contains the contrast parameters of all generated stimuli.
 #' @param saveasjpeg Boolean stating whether to additionally save the CI as jpeg image
+#' @param saveunscaledjpeg Optional boolean specifying whether unscaled versions of classification images should be saved as jpeg
+#' @param targetpath Optional string specifying path to save jpegs to (default: ./cis)
+#' @param label Optional string to insert in file names of jepgs to make them easier to identify 
 #' @param antiCI Optional boolean specifying whether antiCI instead of CI should be computed
 #' @param scaling Optional string specifying scaling method: \code{none}, \code{constant},  \code{matched} or \code{autoscale} (default)
 #' @param constant Optional number specifying the value used as constant scaling factor for the noise (only works for \code{scaling='constant'})
 #' @return List of classification image data structures (which are themselves lists of pixel matrix of classification noise only, scaled classification noise only, base image only and combined) 
-batchGenerateCI2IFC <- function(data, by, stimuli, responses, baseimage, rdata, saveasjpeg=TRUE, antiCI=FALSE, scaling='autoscale', constant=0.1) {
+batchGenerateCI2IFC <- function(data, by, stimuli, responses, baseimage, rdata, saveasjpeg=TRUE, saveunscaledjpeg=FALSE, targetpath='./cis', antiCI=FALSE, scaling='autoscale', constant=0.1, label='') {
  
   if (scaling == 'autoscale') {
     doAutoscale <- TRUE
@@ -268,32 +199,33 @@ batchGenerateCI2IFC <- function(data, by, stimuli, responses, baseimage, rdata, 
     doAutoscale <- FALSE
   }
   
-  pb <- tcltk::tkProgressBar(title="Computing classification images",  min=0, max=length(unique(data[,by])), initial=0)
+  pb <- dplyr::progress_estimated(length(unique(data[,by])))
   cis <- list()
-  counter <- 0
-  
+
   for (unit in unique(data[,by])) {
     
     # Update progress bar
-    counter <- counter + 1
-    tcltk::setTkProgressBar(pb, counter, label=unit)
-    
+    pb$tick()$print()
+
     # Get subset of data 
     unitdata <- data[data[,by] == unit, ]
-
-    # Specify filename for CI jpeg
-    filename <- paste0(baseimage, '_', by, '_', unitdata[1,by])
     
+    # Specify filename for CI jpeg
+    if (label == '') {
+      filename <- paste0(baseimage, '_', by, '_', unitdata[1,by])
+    } else {
+      filename <- paste0(baseimage, '_', label, '_', by, '_', unitdata[1,by])
+    }
+
     # Compute CI with appropriate settings for this subset (Optimize later so rdata file is loaded only once)
-    cis[[filename]] <- generateCI2IFC(unitdata[,stimuli], unitdata[,responses], baseimage, rdata, saveasjpeg, paste0(filename, '.jpg'), antiCI, scaling, constant)
+    cis[[filename]] <- generateCI2IFC(unitdata[,stimuli], unitdata[,responses], baseimage, rdata, saveunscaledjpeg, paste0(filename, '.jpg'), targetpath, antiCI, scaling, constant)
   }
   
   if (doAutoscale) {
-    tcltk::setTkProgressBar(pb, counter, label="Autoscaling...")
-    cis <- autoscale(cis, saveasjpegs=saveasjpeg)
+    cis <- autoscale(cis, saveasjpegs=saveasjpeg, targetpath=targetpath)
   }
   
-  close(pb)
+  pb$stop()
   return(cis)
 
 }
