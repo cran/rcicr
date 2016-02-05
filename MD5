@@ -1,8 +1,8 @@
-cdbe815e55baf5276d4685e732910bfd *ChangeLog
-de6e4f4b78a103380b2b4b8e04ddcbe7 *DESCRIPTION
+7474b2e6e59b48d22d383ba2f628f80c *ChangeLog
+8d9f5d254d8ce48657fc05f729ed7b1d *DESCRIPTION
 3bbdda90b32aaeb9da73191d9460a964 *NAMESPACE
 799d498bff464e18f7c98858f39fa7b1 *R/rcicr.R
-60e4f43f0c0e0abb966d739bbf39648f *R/rcicr_2IFC.R
+823158d72833c1d3d6a189ad849c2a74 *R/rcicr_2IFC.R
 07ccb171ec3f88aec037e88ba675397a *R/rcicr_simulations.R
 08e66b1164b2602fb56cdd38f146374e *inst/CITATION
 ef2a0ee4c92a8c443218081aaecbaa66 *man/autoscale.Rd
@@ -10,7 +10,7 @@ ef2a0ee4c92a8c443218081aaecbaa66 *man/autoscale.Rd
 a6e10eb32dceaac870ba59923927a7a9 *man/batchGenerateCI2IFC.Rd
 ded4eb39a776e73f744347c39244d139 *man/computeCumulativeCICorrelation.Rd
 6bc971d3fdc9f08e41a5ab408112f3e8 *man/generateCI.Rd
-ef89f98c8f124779bb01f0a1b96f734d *man/generateCI2IFC.Rd
+2b56b286349ac0eada6769770355fb29 *man/generateCI2IFC.Rd
 e74d6df1cd323b52f406658f44e0147a *man/generateCINoise.Rd
 657cc2270f4833ea90855b6f4b503507 *man/generateNoiseImage.Rd
 eb8a58bb3d8b0497583acf5e761a1c57 *man/generateNoisePattern.Rd
