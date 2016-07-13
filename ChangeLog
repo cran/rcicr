@@ -1,3 +1,23 @@
+Changes from 0.3.3-43 to 0.3.4.1-44 [13-July-2016]
+
+* Admnistrative release, no changes except for dates.
+
+Changes from 0.3.3-41 to 0.3.4-43 [07-June-2016]
+
+* Fixed images not saved as jpegs when scaling is set to anything other than autoscale in batchGenerateCI and batchGenerateCI2IFC
+* Added independent scaling. Works like matched scaling but maintains the zero point. Is the new recommended default for generating a single base iamge.
+
+Changes from 0.3.3-40 to 0.3.3-41 [27-May-2016]
+
+* Fixed reference to packageVersion which produced a note in CRAN check.
+
+Changes from 0.3.2-39 to 0.3.3-40 [4-Apr-2016]
+
+* Added Gabor noise option. Generate stimuli with generateStimuli2IFC(..., noise_type='gabor'). Almost all functions have been affected in refactoring. 
+* Added option to specify number of spatial scales
+* Changed output of autoscale: scaling factor is no longer part of the list of classification images that is returned
+* Bugfix: When using pre 0.3.0 Rdata file, the paramater matrix will now be truncated to the appropriate numbers of parameters
+
 Changes from 0.3.2-37 to 0.3.2.1-39 [8-Oct-2015]
 
 * Bugfix: NA's in by parameter of batchGenerateCI2IFC() get ignored instead of making R crash. Thank you Elze Ufkes for reporting this bug!
